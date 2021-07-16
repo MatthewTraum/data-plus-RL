@@ -8,14 +8,13 @@ from models import DQN
 
 class DQNAgent:
 
-    def __init__(self, env, learning_rate=3e-4, gamma=0.5, buffer_size=10000):
-        self.env = env
+    def __init__(self, NumObs, NumActions,learning_rate=3e-4, gamma=0.5, buffer_size=10000):
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.replay_buffer = Buffer(max_size=buffer_size)
+        self.replay_buffer = Buffer(buffer_size)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = DQN(env.observation_space.shape, env.action_space.n).to(self.device)
+        self.model = DQN(NumObs, NumActions).to(self.device)
 
         self.optimizer = torch.optim.Adam(self.model.parameters())
         self.MSE_loss = nn.MSELoss()
@@ -32,17 +31,18 @@ class DQNAgent:
 
     def compute_loss(self, batch):
         states, actions, rewards, next_states = batch
-        states = torch.FloatTensor(states).to(self.device)
+        states = torch.tensor(states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
-        next_states = torch.FloatTensor(next_states).to(self.device)
+        next_states = torch.tensor(next_states).to(self.device)
 
 
         curr_Q = self.model.forward(states).gather(1, actions.unsqueeze(1))
         curr_Q = curr_Q.squeeze(1)
         next_Q = self.model.forward(next_states)
         max_next_Q = torch.max(next_Q, 1)[0]
-        expected_Q = rewards.squeeze(1) + self.gamma * max_next_Q
+        #expected_Q = rewards.squeeze(1) + self.gamma * max_next_Q
+        expected_Q = rewards + max_next_Q
 
         loss = self.MSE_loss(curr_Q, expected_Q)
         return loss

@@ -45,16 +45,15 @@ class DQN(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
 
-        #ShouldBeAParameterAndNotCalculatedInteranlly
-        input_size = GameParameterSet.M+GameParameterSet.N*4+10
-
+        sizeFirstHidden = 25
+        sizeSecondHidden = 30
 
         self.fc = nn.Sequential(
-            nn.Linear(self.input_dim[0], input_size),
+            nn.Linear(self.input_dim, sizeFirstHidden),
             nn.ReLU(),
-            nn.Linear(input_size, 2*input_size),
+            nn.Linear(sizeFirstHidden, sizeSecondHidden),
             nn.ReLU(),
-            nn.Linear(2*input_size, self.output_dim)
+            nn.Linear(sizeSecondHidden, self.output_dim)
         )
 
 

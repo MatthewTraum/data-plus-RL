@@ -8,13 +8,14 @@ from collections import deque
 from sum_tree import SumTree
 
 class Buffer:
-
     def __init__(self, max_size):
         self.max_size = max_size
+        self.current_length = 0
         self.buffer = deque(maxlen=max_size)
 
     def push(self, state, action, reward, next_state):
         experience = (state, action, reward, next_state)
+        self.current_length +=1
         self.buffer.append(experience)
 
     def sample(self, batch_size):
@@ -22,7 +23,6 @@ class Buffer:
         action_batch = []
         reward_batch = []
         next_state_batch = []
-
 
         batch = random.sample(self.buffer, batch_size)
 
@@ -33,8 +33,7 @@ class Buffer:
             reward_batch.append(reward)
             next_state_batch.append(next_state)
 
-
-        return (state_batch, action_batch, reward_batch, next_state_batch)
+        return state_batch, action_batch, reward_batch, next_state_batch
 
     def sample_sequence(self, batch_size):
         state_batch = []
@@ -53,8 +52,7 @@ class Buffer:
             reward_batch.append(reward)
             next_state_batch.append(next_state)
 
-
-        return (state_batch, action_batch, reward_batch, next_state_batch)
+        return state_batch, action_batch, reward_batch, next_state_batch
 
     def __len__(self):
         return len(self.buffer)
