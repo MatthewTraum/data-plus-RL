@@ -3,15 +3,17 @@ import torch.nn as nn
 import torch.autograd as autograd
 import numpy as np
 
+from random import randrange
 from event_buffer import Buffer
 from models import DQN
 
 class DQNAgent:
 
-    def __init__(self, NumObs, NumActions,learning_rate=3e-4, gamma=0.5, buffer_size=10000):
+    def __init__(self, NumObs, NumActions,learning_rate=3e-4, gamma=0.5, buffer_size=50000):
+
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.replay_buffer = Buffer(buffer_size)
+        self.buffer = Buffer(buffer_size)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = DQN(NumObs, NumActions).to(self.device)
@@ -19,13 +21,19 @@ class DQNAgent:
         self.optimizer = torch.optim.Adam(self.model.parameters())
         self.MSE_loss = nn.MSELoss()
 
-    def get_action(self, state, eps=0.20):
-        state = torch.FloatTensor(state).float().unsqueeze(0).to(self.device)
+        #TODO fix starter policy
+        self.start_policy = 0
+
+
+
+
+    def get_policy(self, state, numPolicies, eps=0.20):
+        state = torch.FloatTensor(state).to(self.device)
         qvals = self.model.forward(state)
         action = np.argmax(qvals.cpu().detach().numpy())
 
         if (np.random.randn() < eps):
-            return self.env.action_space.sample()
+            return randrange(numPolicies)
 
         return action
 
@@ -44,11 +52,12 @@ class DQNAgent:
         #expected_Q = rewards.squeeze(1) + self.gamma * max_next_Q
         expected_Q = rewards + max_next_Q
 
+
         loss = self.MSE_loss(curr_Q, expected_Q)
         return loss
 
     def update(self, batch_size):
-        batch = self.replay_buffer.sample(batch_size)
+        batch = self.buffer.sample(batch_size)
         loss = self.compute_loss(batch)
 
         self.optimizer.zero_grad()

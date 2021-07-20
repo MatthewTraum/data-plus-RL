@@ -139,12 +139,15 @@ class Game():
             self.policy_record = []
             self.communication_record = [True]
 
-    def advance_time(self) -> bool:
+    def advance_time(self, BigState):
         """
         Advances the time in the game, and calls on each player to make a 
         move. Returns true unless the game is over (when t is greater than 
         or equal to T).
         """
+
+        reward = 0
+
         if self.state.t >= self.state.params.T:
             return False
 
@@ -164,7 +167,7 @@ class Game():
         if (adversary_guess == transmission_band):
             self.state.score_b += self.state.params.R3
         elif (receiver_guess == transmission_band):
-            self.state.score_a += self.state.params.R1
+            reward += self.state.params.R1
 
         # After transmission, determine if a new policy is needed --------------
         if self.state.t + 1 < self.state.params.T:
@@ -192,7 +195,7 @@ class Game():
                 # Communicating the policy without switching it
                 # QUESTION - would this ever happen?
                 self.communication_record.append(True)
-                self.state.score_a -= self.state.params.R3 * \
+                reward -= self.state.params.R3 * \
                     math.log2(self.state.params.N)
             else:
                 # No policy change, and no communication
@@ -201,8 +204,96 @@ class Game():
         # Advance the time -----------------------------------------------------
 
         self.state.t += 1
+        print(self.state.t)
+        if self.state.t >= self.state.params.T:
+            done = True
+        else:
+            done = False
+        nextState = self.updateRelevantInfo(self.transmitter, self.game_state)
 
-        return True
+
+
+
+
+
+        return new_policy_id, reward, nextState, done
+
+    def updateRelevantInfo(transmitter, game_state: GameState) -> int:
+
+        if transmitter.relevant_info == None:
+            transmitter.initialize_relevant_info(game_state)
+
+        # Check the adversary's guess on the last turn, then update info ------
+
+        transmitter.adversary_band_guess_count[
+            game_state.rounds[-1].adversary_guess] += 1
+
+        if game_state.rounds[-1].adversary_guess == \
+                game_state.rounds[-1].transmission_band:
+            # The adversary was correct
+            transmitter.adversary_policy_correct_count[transmitter.policy_record[-1]] += 1
+            transmitter.adversary_correct_since_last_switch += 1
+            transmitter.relevant_info["adversary_success_in_last_4_turns"].append(
+                True)
+            transmitter.adversary_correct_hx20.append(1)
+            transmitter.adversary_correct_total += 1
+
+        else:
+            # The adversary was incorrect
+            transmitter.relevant_info["adversary_success_in_last_4_turns"].append(
+                False)
+            transmitter.adversary_correct_hx20.append(0)
+
+        transmitter.relevant_info["adversary_success_in_last_4_turns"] = \
+            transmitter.relevant_info["adversary_success_in_last_4_turns"][-4:]
+        transmitter.adversary_correct_hx20 = transmitter.adversary_correct_hx20[-20:]
+
+        transmitter.policy_record.append(transmitter.current_policy)
+        transmitter.policy_use_count[transmitter.current_policy] += 1
+        transmitter.bandwidth_use_count[game_state.policy_list[
+            transmitter.current_policy].get_bandwidth(game_state.t)] += 1
+
+        transmitter.relevant_info["current_policy"] = transmitter.current_policy
+        transmitter.relevant_info["next_bandwidth_for_current_policy"] = \
+            game_state.policy_list[transmitter.current_policy].get_bandwidth(
+                game_state.t + 1)
+        transmitter.relevant_info["current_time"] = game_state.t
+        transmitter.relevant_info["percent_of_time_on_each_policy"] = [
+            transmitter.policy_use_count[i] / (game_state.t + 1)
+            for i in range(game_state.params.N)]
+        self.relevant_info["percent_time_adversary_guessed_each_band"] = [
+            self.adversary_band_guess_count[i] / (game_state.t + 1)
+            for i in range(game_state.params.M)]
+        # NOTE: consider (5 lines below) what value to insert for
+        # unused policies (currently math.nan)
+        self.relevant_info["adversary_accuracy_for_each_policy"] = [
+            self.adversary_policy_correct_count[i] / self.policy_use_count[i]
+            if self.policy_use_count[i] != 0 else math.nan
+            for i in range(game_state.params.N)]
+        self.relevant_info["adversary_accuracy_since_last_switch"] = \
+            self.adversary_correct_since_last_switch / self.relevant_info["time_since_last_switch"]
+        self.relevant_info["adversary_accuracy_in_last_20_turns"] = sum(
+            self.adversary_correct_hx20) / min(game_state.t + 1, 20)
+        self.relevant_info["adversary_accuracy_all_game"] = \
+            self.adversary_correct_total / (game_state.t + 1)
+        self.relevant_info["average_duration_between_switches"] = \
+            (game_state.t + 1) / self.switch_count
+
+        # Ask the player to choose policy -------------------------------------
+
+        self.show_relevant_info()
+        policy = get_integer("New policy [-1 = no change]? (0 - {:d})".format(
+            game_state.params.N - 1), min=-1, max=game_state.params.N - 1)
+
+        # Update current policy info ------------------------------------------
+
+        if policy == -1:
+            self.relevant_info["time_since_last_switch"] += 1
+        else:
+            self.relevant_info["time_since_last_switch"] = 1
+            self.adversary_correct_since_last_switch = 0
+            self.current_policy = policy
+            self.switch_count += 1
 
     def __str__(self):
         game_str = f"--GAME--\n"

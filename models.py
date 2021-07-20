@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.autograd as autograd
 
-from GameParameters import GameParameterSet
-
 
 #class ConvDQN(nn.Module):
 

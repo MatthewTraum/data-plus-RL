@@ -172,3 +172,4 @@ class HumanInfoTransmitter(Transmitter):
         self.adversary_correct_hx20 = []
         self.adversary_correct_total = 0
         self.switch_count = 1
+
