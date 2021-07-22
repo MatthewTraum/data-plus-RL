@@ -15,7 +15,6 @@ class BetterGameSimulator:
 
     def __init__(self, params: GameParameterSet, policy_maker: PolicyMaker,
                  transmitter: Transmitter, receiver: Receiver, adversary: Adversary):
-        #TODO Figure out better method for getting first state
         self.params = params
         self.transmitter = transmitter
         self.receiver = receiver
@@ -24,8 +23,8 @@ class BetterGameSimulator:
 
         "Size of state is 9+3N+M"
         self.state = {
-            #TODO MAKE LAST POLICY ONE-HOT
             "1_hot_last_policy": [0 for _ in range(params.N)],
+            #"bad_switch" : [0 for _in range(params.N)],
             "t": 0,
             "time_since_last_switch": 0,
             "adversary_correct_since_last_switch": 0,
@@ -71,8 +70,10 @@ class BetterGameSimulator:
             self.transmitter.buffer.push(state, action, reward, next_state)
             #Need to teach the game ends
             if done:
-                for i in range(self.params.N):
-                    self.transmitter.buffer.push(next_state, action, 0, next_state)
+                #really want to teach game over 0 reward.
+                for _ in range(int(self.params.T/self.params.N/4)):
+                    for i in range(self.params.N):
+                        self.transmitter.buffer.push(next_state, i, 0, next_state)
             state = next_state
             self.nnInput = state
             gameReward += reward
@@ -89,7 +90,6 @@ class BetterGameSimulator:
 
         reward = 0
         t = self.state["t"]
-        #TODO Use Q-Network To Select Policy
         # Select policy --------------------------------
         action = self.transmitter.get_policy(self.nnInput, self.params.N)
         # Transmit based on the selected policy --------------------------------
@@ -97,15 +97,14 @@ class BetterGameSimulator:
 
         transmission_band = policy.get_bandwidth(t)
         receiver_guess = transmission_band
-        #adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds,t)
-        adversary_guess = random.randrange(0,self.params.M)
+        adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds,t)
+        #adversary_guess = random.randrange(0,self.params.M)
 
         self.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
 
         if (adversary_guess != transmission_band):
             reward += self.params.R1
         if action != self.last_policy:
-            #currently not considering cost of switch
             reward -= self.params.R2
 
         # Advance the time ----------------------------------------------------
@@ -138,6 +137,7 @@ class BetterGameSimulator:
             self.state["time_since_last_switch"] = 0
         else:
             self.state["time_since_last_switch"] += 1
+        #print(self.state["time_since_last_switch"])
 
         self.state["1_hot_last_policy"] = [0 for i in range(self.params.N)]
         self.state["1_hot_last_policy"][action]=1

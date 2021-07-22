@@ -16,29 +16,29 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 
 
-def train(agent, max_episodes, batch_size, policy_maker, receiver, adversary):
+def train(agent, max_episodes, batch_size, updates_per_episode, policy_maker, receiver, adversary):
     episode_rewards = []
     i=1
     for episode in range(max_episodes):
         game_rewards = []
-        while agent.buffer.current_length <= batch_size*i:
-        #for _ in range(10):
+        #while agent.buffer.current_length <= batch_size*i:
+        for _ in range(50):
             game_reward = BetterGameSimulator(params, policy_maker, agent, receiver, adversary).simulate_game()
             game_rewards.append(game_reward)
         i+=1
 
-        for k in range(3):
+        for k in range(updates_per_episode):
             agent.update(batch_size)
 
 
 
-        if episode%5 ==4:
-            agent.buffer = Buffer(50000) #should be same as dql_agents
+        if episode%3 ==2:
+            agent.buffer = Buffer(100000) #should be same as dql_agents
             agent.buffer.current_length = 0
             i=1
 
 
-        #Getting some errors with divide by 0 should doo
+        #Getting some errors with divide by 0 should do something to make sure each episode has games
         episode_reward = sum(game_rewards)/len(game_rewards)
         episode_rewards.append(episode_reward)
         print("Episode " + str(episode) + ": " + str(episode_reward))
@@ -49,12 +49,14 @@ if __name__ == "__main__":
     params_dict = get_parameters("GAME_PARAMS")
     params = get_game_params_from_dict(params_dict)
 
-    params.T = 50
+    params.T = 40
     params.N = 5
     params.M = 10
 
-    MAX_EPISODE = 150
-    BATCH_SIZE = 7 * (params.T+params.N-1)
+    MAX_EPISODE = 100
+    UPDATES_PER_EPISODE = 10
+    BATCH_SIZE = 20 * (params.T+params.N-1)
+
 
     policy_maker = RandomDeterministicPolicyMaker(params)
     stateSize = 9 + 3*params.N+params.M
@@ -63,11 +65,11 @@ if __name__ == "__main__":
     receiver = ExampleReceiver()
     adversary = GammaAdversary()
 
-    ret = train(transmitter, MAX_EPISODE, BATCH_SIZE, policy_maker, receiver, adversary)
+    ret = train(transmitter, MAX_EPISODE, BATCH_SIZE,UPDATES_PER_EPISODE, policy_maker, receiver, adversary)
 
 
-    X = np.array([i for i in range(10,MAX_EPISODE)]).reshape((-1, 1))
-    Y = np.array(ret[10:])
+    X = np.array([i for i in range(MAX_EPISODE)]).reshape((-1, 1))
+    Y = np.array(ret)
     model = LinearRegression()  # create object for the class
     model.fit(X, Y)  # perform linear regression
     Y_pred = model.predict(X)  # make predictions
