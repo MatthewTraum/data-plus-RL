@@ -13,8 +13,8 @@ class Buffer:
         self.current_length = 0
         self.buffer = deque(maxlen=max_size)
 
-    def push(self, state, action, reward, next_state):
-        experience = (state, action, reward, next_state)
+    def push(self, state, action, reward, next_state, notDone):
+        experience = (state, action, reward, next_state, notDone)
         self.current_length +=1
         self.buffer.append(experience)
 
@@ -23,17 +23,19 @@ class Buffer:
         action_batch = []
         reward_batch = []
         next_state_batch = []
+        not_done_batch = []
 
         batch = random.sample(self.buffer, batch_size)
 
         for experience in batch:
-            state, action, reward, next_state= experience
+            state, action, reward, next_state, notDone= experience
             state_batch.append(state)
             action_batch.append(action)
             reward_batch.append(reward)
             next_state_batch.append(next_state)
+            not_done_batch.append(notDone)
 
-        return state_batch, action_batch, reward_batch, next_state_batch
+        return state_batch, action_batch, reward_batch, next_state_batch, notDone
 
     def sample_sequence(self, batch_size):
         state_batch = []
@@ -45,14 +47,15 @@ class Buffer:
         start = np.random.randint(0, min_start)
 
         for sample in range(start, start + batch_size):
-            state, action, reward, next_state= self.buffer[start]
-            state, action, reward, next_state = experience
+            state, action, reward, next_state, notDone = self.buffer[start]
+            state, action, reward, next_state, notDone = experience
             state_batch.append(state)
             action_batch.append(action)
             reward_batch.append(reward)
             next_state_batch.append(next_state)
+            not_done_batch.append(notDone)
 
-        return state_batch, action_batch, reward_batch, next_state_batch
+        return state_batch, action_batch, reward_batch, next_state_batch, notDone
 
     def __len__(self):
         return len(self.buffer)
@@ -66,11 +69,11 @@ class PrioritizedBuffer:
         self.beta = beta
         self.current_length = 0
 
-    def push(self, state, action, reward, next_state, done):
-        priority = 1.0 if self.current_length is 0 else self.sum_tree.tree.max()
+    def push(self, state, action, reward, next_state, notDone):
+        priority = 1.0 if self.current_length == 0 else self.sum_tree.tree.max()
         self.current_length = self.current_length + 1
         #priority = td_error ** self.alpha
-        experience = (state, action, np.array([reward]), next_state, done)
+        experience = (state, action, np.array([reward]), next_state, notDone)
         self.sum_tree.add(priority, experience)
 
     def sample(self, batch_size):

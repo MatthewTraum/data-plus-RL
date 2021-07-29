@@ -1,4 +1,4 @@
-print("Importing pacakges...")
+print("Importing packages...")
 
 from neural_networks.base.NetworkInteraction import get_game_params_from_dict
 from neural_networks.base.ParameterHost import get_parameters
@@ -21,19 +21,19 @@ class BetterGameSimulator:
         self.adversary = adversary
         self.policy_list = policy_maker.get_policy_list()
 
-        "Size of state is 9+3N+M"
+        "Size of state is 10+3N"
         self.state = {
-            "1_hot_last_policy": [0 for _ in range(params.N)],
-            #"bad_switch" : [0 for _in range(params.N)],
-            "t": 0,
-            "time_since_last_switch": 0,
-            "adversary_correct_since_last_switch": 0,
-            "percent_of_time_on_each_policy": [0 for _ in range(params.N)],
-            "percent_time_adversary_guessed_each_band": [0 for _ in range(params.M)],
-            "adversary_accuracy_for_each_policy": [0 for _ in range(params.N)],
-            "adversary_accuracy_since_last_switch": 0,
-            "adversary_success_in_last_4_turns": [0, 0, 0, 0],
-            "adversary_accuracy_in_last_20_turns": 0,
+            "reverse_1_hot_last_policy": [1 for _ in range(params.N)],
+            "t" : 0
+            #"t": 0,
+            #"time_remaining": self.params.T,
+            #"time_since_last_switch": 0,
+            #"adversary_correct_since_last_switch": 0,
+            #percent_of_time_on_each_policy": [0 for _ in range(params.N)],
+            #"adversary_accuracy_for_each_policy": [0 for _ in range(params.N)],
+            #"adversary_accuracy_since_last_switch": 0,
+            #"adversary_success_in_last_4_turns": [0, 0, 0, 0],
+            #"adversary_accuracy_in_last_20_turns": 0,
         }
         self.last_policy = -1
         self.adversary_correct_since_last_switch = 0
@@ -44,12 +44,12 @@ class BetterGameSimulator:
         self.adversary_correct_hx20 = []
         self.rounds = []
         self.nnInput = []
+        self.numSwitches = 0
 
 
 
     def simulate_game(self) -> int:
         # Initialize the return lists
-
         gameReward = 0
 
         # Run the game
@@ -61,23 +61,25 @@ class BetterGameSimulator:
                     state.append(elm)
             else:
                 state.append(self.state[item])
-        self.nnInput=state
+        self.nnInput = state
 
         done = False
         while not done:
             item = self.advance_time()
-            action, reward, next_state, done = item[:]
-            self.transmitter.buffer.push(state, action, reward, next_state)
-            #Need to teach the game ends
+            action, reward, next_state, done = item
+
             if done:
-                #really want to teach game over 0 reward.
-                for _ in range(int(self.params.T/self.params.N/4)):
-                    for i in range(self.params.N):
-                        self.transmitter.buffer.push(next_state, i, 0, next_state)
+                for i in range(5):
+                    self.transmitter.buffer.push(state, action, 0, next_state, 0)
+            else:
+                self.transmitter.buffer.push(state, action, reward, next_state, 1)
+
+
             state = next_state
             self.nnInput = state
             gameReward += reward
 
+        #print(self.numSwitches)
         return gameReward
 
 
@@ -97,8 +99,8 @@ class BetterGameSimulator:
 
         transmission_band = policy.get_bandwidth(t)
         receiver_guess = transmission_band
-        adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds,t)
-        #adversary_guess = random.randrange(0,self.params.M)
+        #adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds,t)
+        adversary_guess = random.randrange(0,self.params.M)
 
         self.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
 
@@ -118,7 +120,6 @@ class BetterGameSimulator:
             else:
                 nextState.append(self.state[item])
 
-
         if self.state["t"] >= self.params.T:
             return action, reward, nextState, True
         else:
@@ -128,32 +129,34 @@ class BetterGameSimulator:
 
     def updateState(self,action):
         # Update states, actions, rewards based on what happened in the game
+
         t = self.state["t"]
         round = self.rounds[t]
 
         self.adversary_band_guess_count[round.adversary_guess] += 1
         if self.last_policy != action:
             self.last_policy = action
-            self.state["time_since_last_switch"] = 0
-        else:
-            self.state["time_since_last_switch"] += 1
+            #self.state["time_since_last_switch"] = 0
+            self.numSwitches+=1
+        #else:
+            #self.state["time_since_last_switch"] += 1
         #print(self.state["time_since_last_switch"])
 
-        self.state["1_hot_last_policy"] = [0 for i in range(self.params.N)]
-        self.state["1_hot_last_policy"][action]=1
+        self.state["reverse_1_hot_last_policy"] = [1 for _ in range(self.params.N)]
+        self.state["reverse_1_hot_last_policy"][action]=0
 
         if round.adversary_guess == round.transmission_band:
             # The adversary was correct
             self.adversary_policy_correct_count[action] += 1
             self.adversary_correct_since_last_switch += 1
-            self.state["adversary_success_in_last_4_turns"].append(0)
-            self.state["adversary_success_in_last_4_turns"].pop(0)
+            #self.state["adversary_success_in_last_4_turns"].append(0)
+            #self.state["adversary_success_in_last_4_turns"].pop(0)
             self.adversary_correct_hx20.append(1)
 
         else:
             # The adversary was incorrect
-            self.state["adversary_success_in_last_4_turns"].append(1)
-            self.state["adversary_success_in_last_4_turns"].pop(0)
+            #self.state["adversary_success_in_last_4_turns"].append(1)
+            #self.state["adversary_success_in_last_4_turns"].pop(0)
             self.adversary_correct_hx20.append(0)
 
         self.adversary_correct_hx20 = self.adversary_correct_hx20[-20:]
@@ -162,10 +165,12 @@ class BetterGameSimulator:
         self.bandwidth_use_count[round.transmission_band] += 1
         t = t+1
         self.state["t"] = t
+        #self.state["time_remaining"] = self.state.get("time_remaining")-1
+        """
         self.state["percent_of_time_on_each_policy"] = [
-            self.policy_use_count[i] / (t) for i in range(self.params.N)]
+            #self.policy_use_count[i] / (t) for i in range(self.params.N)]
         self.state["percent_time_adversary_guessed_each_band"] = [
-            self.adversary_band_guess_count[i] / (t) for i in range(self.params.M)]
+            #self.adversary_band_guess_count[i] / (t) for i in range(self.params.M)]
         # NOTE: consider (4 lines below) what value to insert for
         # unused policies (currently 0)
         self.state["adversary_accuracy_for_each_policy"] = [
@@ -178,6 +183,7 @@ class BetterGameSimulator:
             self.state["adversary_accuracy_since_last_switch"] = 0
         self.state["adversary_accuracy_in_last_20_turns"] = sum(
             self.adversary_correct_hx20) / min(t, 20)
+        """
 
 
 

@@ -9,7 +9,7 @@ from models import DQN
 
 class DQNAgent:
 
-    def __init__(self, NumObs, NumActions,learning_rate=3e-4, gamma=0.5, buffer_size=100000):
+    def __init__(self, NumObs, NumActions, learning_rate=.001, gamma=0.5, buffer_size=100000):
 
         self.learning_rate = learning_rate
         self.gamma = gamma
@@ -18,8 +18,9 @@ class DQNAgent:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = DQN(NumObs, NumActions).to(self.device)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters())
+        self.optimizer = torch.optim.Adam(self.model.parameters(),learning_rate)
         self.MSE_loss = nn.MSELoss()
+
 
         #TODO fix starter policy
         self.start_policy = 0
@@ -31,6 +32,7 @@ class DQNAgent:
         state = torch.FloatTensor(state).to(self.device)
         qvals = self.model.forward(state)
         action = np.argmax(qvals.cpu().detach().numpy())
+        print(qvals)
 
         if (np.random.randn() < eps):
             return randrange(numPolicies)
@@ -38,23 +40,21 @@ class DQNAgent:
         return action
 
     def compute_loss(self, batch):
-        states, actions, rewards, next_states = batch
-        states = torch.tensor(states).to(self.device)
-        actions = torch.LongTensor(actions).to(self.device)
+        states, actions, rewards, next_states, notDones = batch
+        states = torch.FloatTensor(states).to(self.device)
+        actions = torch.tensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
-        next_states = torch.tensor(next_states).to(self.device)
-
+        next_states = torch.FloatTensor(next_states).to(self.device)
+        notDones = torch.tensor(notDones).to(self.device)
 
         curr_Q = self.model.forward(states).gather(1, actions.unsqueeze(1))
         curr_Q = curr_Q.squeeze(1)
         next_Q = self.model.forward(next_states)
         max_next_Q = torch.max(next_Q, 1)[0]
-        #expected_Q = rewards.squeeze(1) + self.gamma * max_next_Q
-        expected_Q = rewards + max_next_Q
-
+        expected_Q = rewards + 0*(1*max_next_Q* notDones)
 
         loss = self.MSE_loss(curr_Q, expected_Q)
-        #print("loss is "+str(loss.data))
+        #print(loss.data)
         return loss
 
     def update(self, batch_size):
@@ -64,4 +64,5 @@ class DQNAgent:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        return loss
 

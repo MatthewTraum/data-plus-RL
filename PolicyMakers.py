@@ -16,6 +16,7 @@ class ExamplePolicyMaker(PolicyMaker):
 
 class RandomDeterministicPolicyMaker(PolicyMaker):
     def __init__(self, params: GameParameterSet) -> None:
+        random.seed(10)
         self.random_sequence_set = [
             [   random.randint(0, params.M - 1) for _ in range(params.T)] 
                 for _ in range(params.N)

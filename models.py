@@ -43,8 +43,8 @@ class DQN(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
 
-        sizeFirstHidden = 25
-        sizeSecondHidden = 30
+        sizeFirstHidden = 8
+        sizeSecondHidden = 6
 
         self.fc = nn.Sequential(
             nn.Linear(self.input_dim, sizeFirstHidden),

@@ -7,6 +7,7 @@ from neural_networks.base.ParameterHost import get_parameters
 from Receivers import *
 from Adversaries import *
 from PolicyMakers import *
+from SimpleGameSimulator import SimpleGameSimulator
 
 from copy import deepcopy
 
@@ -16,26 +17,35 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 
 
-def train(agent, max_episodes, batch_size, updates_per_episode, policy_maker, receiver, adversary):
+def train(agent, num_episodes, min_games_per_episode, updates_per_episode, policy_maker, receiver, adversary):
+    batch_size = 1000
     episode_rewards = []
-    i=1
-    for episode in range(max_episodes):
+    episode_switches = []
+    for episode in range(num_episodes):
         game_rewards = []
-        #while agent.buffer.current_length <= batch_size*i:
-        for _ in range(50):
+        i = 0
+
+        while i < min_games_per_episode or agent.buffer.current_length < 8*batch_size:
+        #for _ in range(games_per_episode):
             game_reward = BetterGameSimulator(params, policy_maker, agent, receiver, adversary).simulate_game()
             game_rewards.append(game_reward)
-        i+=1
+            #switches.append(switch)
+            i += 1
 
         for k in range(updates_per_episode):
-            agent.update(batch_size)
+            loss = agent.update(batch_size)
+            #print(loss)
+            #1.0107 is 300th root of 5. Grows 5 times
+        batch_size=int(batch_size*1.00537920931)+1
 
 
 
-        if episode%3 ==2:
-            agent.buffer = Buffer(100000) #should be same as dql_agents
+        if episode%5 ==4:
+            agent.buffer = Buffer(10*batch_size) #should be same as dql_agents
             agent.buffer.current_length = 0
-            i=1
+
+        #batch_size = batch_size + games_per_episode * (params.T)//20
+        #if batch_size* params.T* games_per_episode<= batch_size * :
 
 
         #Getting some errors with divide by 0 should do something to make sure each episode has games
@@ -49,27 +59,30 @@ if __name__ == "__main__":
     params_dict = get_parameters("GAME_PARAMS")
     params = get_game_params_from_dict(params_dict)
 
-    params.T = 40
+    params.T = 100
     params.N = 5
     params.M = 10
 
-    MAX_EPISODE = 100
+    NUM_EPISODES = 100
     UPDATES_PER_EPISODE = 10
-    BATCH_SIZE = 20 * (params.T+params.N-1)
+    MIN_GAMES_PER_EPISODE = 8
+
+
 
 
     policy_maker = RandomDeterministicPolicyMaker(params)
-    stateSize = 9 + 3*params.N+params.M
+    stateSize = 1*params.N +1
 
     transmitter = DQNAgent(stateSize, params.N)
     receiver = ExampleReceiver()
     adversary = GammaAdversary()
 
-    ret = train(transmitter, MAX_EPISODE, BATCH_SIZE,UPDATES_PER_EPISODE, policy_maker, receiver, adversary)
+    rewards = train(transmitter, NUM_EPISODES, MIN_GAMES_PER_EPISODE, UPDATES_PER_EPISODE, policy_maker, receiver, adversary)
 
 
-    X = np.array([i for i in range(MAX_EPISODE)]).reshape((-1, 1))
-    Y = np.array(ret)
+    X = np.array([i for i in range(NUM_EPISODES)]).reshape((-1, 1))
+    Y = np.array(rewards)
+    #Z = np.array(switches)
     model = LinearRegression()  # create object for the class
     model.fit(X, Y)  # perform linear regression
     Y_pred = model.predict(X)  # make predictions
@@ -78,6 +91,7 @@ if __name__ == "__main__":
     print('coefficient of determination:', r_sq)
     print('intercept:', model.intercept_)
     print('slope:', model.coef_)
+
 
     plt.scatter(X, Y)
     plt.plot(X, Y_pred, color='red')
