@@ -7,7 +7,7 @@ from neural_networks.base.ParameterHost import get_parameters
 from Receivers import *
 from Adversaries import *
 from PolicyMakers import *
-from SimpleGameSimulator import *
+from SimpleGameSimulator import SimpleGameSimulator
 
 from copy import deepcopy
 
@@ -18,40 +18,18 @@ from sklearn.linear_model import LinearRegression
 
 
 def train(agent, num_episodes, min_games_per_episode, updates_per_episode, policy_maker, receiver, adversary):
-    batch_size = 500
-    episode_rewards = []
-    episode_switches = []
+    episode_rewards=[]
+    batch_size = params.N**2
     for episode in range(num_episodes):
-        game_rewards = []
-        i = 0
+        game_reward = SimpleGameSimulator2(params, policy_maker, agent, receiver, adversary).simulate_game()
+        episode_rewards.append(game_reward)
 
-        while i < min_games_per_episode or agent.buffer.current_length < 8*batch_size:
-        #for _ in range(games_per_episode):
-            game_reward = SimpleGameSimulator(params, policy_maker, agent, receiver, adversary).simulate_game()
-            game_rewards.append(game_reward)
-            #switches.append(switch)
-            i += 1
 
         for k in range(updates_per_episode):
             loss = agent.update(batch_size)
-            #print(loss)
-            #1.0107 is 300th root of 5. Grows 5 times
-        batch_size=int(batch_size*1.00537920931)+1
+        agent.buffer.current_length = 0
 
-
-
-        if episode%5 ==4:
-            agent.buffer = Buffer(10*batch_size) #should be same as dql_agents
-            agent.buffer.current_length = 0
-
-        #batch_size = batch_size + games_per_episode * (params.T)//20
-        #if batch_size* params.T* games_per_episode<= batch_size * :
-
-
-        #Getting some errors with divide by 0 should do something to make sure each episode has games
-        episode_reward = sum(game_rewards)/len(game_rewards)
-        episode_rewards.append(episode_reward)
-        print("Episode " + str(episode) + ": " + str(episode_reward))
+        print("Episode " + str(episode) + ": " + str(game_reward))
     return episode_rewards
 
 
@@ -59,13 +37,13 @@ if __name__ == "__main__":
     params_dict = get_parameters("GAME_PARAMS")
     params = get_game_params_from_dict(params_dict)
 
-    params.T = 20
+    params.T = 10
     params.N = 5
     params.M = 10
 
-    NUM_EPISODES = 75
-    UPDATES_PER_EPISODE = 20
-    MIN_GAMES_PER_EPISODE = 8
+    NUM_EPISODES = 150
+    UPDATES_PER_EPISODE = 100
+    MIN_GAMES_PER_EPISODE = 30
 
 
 

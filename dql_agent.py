@@ -28,11 +28,11 @@ class DQNAgent:
 
 
 
-    def get_policy(self, state, numPolicies, eps=.2):
+    def get_policy(self, state, numPolicies, eps=0):
         state = torch.FloatTensor(state).to(self.device)
         qvals = self.model.forward(state)
         action = np.argmax(qvals.cpu().detach().numpy())
-        print(qvals)
+        #print(qvals)
 
         if (np.random.randn() < eps):
             return randrange(numPolicies)
@@ -47,14 +47,18 @@ class DQNAgent:
         next_states = torch.FloatTensor(next_states).to(self.device)
         notDones = torch.tensor(notDones).to(self.device)
 
-        curr_Q = self.model.forward(states).gather(1, actions.unsqueeze(1))
+
+        curr_Q= self.model.forward(states).gather(1, actions.unsqueeze(1))
         curr_Q = curr_Q.squeeze(1)
         next_Q = self.model.forward(next_states)
         max_next_Q = torch.max(next_Q, 1)[0]
-        expected_Q = rewards + 0*(1*max_next_Q* notDones)
+
+        #print(max_next_Q)
+        expected_Q = rewards + (0*max_next_Q* notDones)
 
         loss = self.MSE_loss(curr_Q, expected_Q)
-        #print(loss.data)
+        #print(loss)
+        #print(loss.size())
         return loss
 
     def update(self, batch_size):

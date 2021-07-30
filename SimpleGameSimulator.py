@@ -31,11 +31,10 @@ class SimpleGameSimulator:
 
         for t in range(self.params.T):
             trueAct = self.transmitter.get_policy(self.state, self.params.N)
-            #trueAct = self.lastAct
             self.state = [0]*self.params.N
             self.state[trueAct] = 1
-            if trueAct != self.lastAct:
-                gameReward -= self.params.R2
+            if trueAct == self.lastAct:
+                gameReward += self.params.R2
                 self.lastAct = trueAct
             for action in range(self.params.N):
                 nextState = [0]*self.params.N
@@ -45,9 +44,10 @@ class SimpleGameSimulator:
                 else:
                     reward = 0
                 if t == self.params.T-1:
-                    self.transmitter.buffer.push(state, action, reward, nextState, 1)
-                else:
                     self.transmitter.buffer.push(state, action, reward, nextState, 0)
+                else:
+                    self.transmitter.buffer.push(state, action, reward, nextState, 1)
+            self.lastAct = trueAct
 
         return gameReward
 

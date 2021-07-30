@@ -23,10 +23,9 @@ class BetterGameSimulator:
 
         "Size of state is 10+3N"
         self.state = {
-            "reverse_1_hot_last_policy": [1 for _ in range(params.N)],
-            "t" : 0
-            #"t": 0,
-            #"time_remaining": self.params.T,
+            "reverse_1_hot_last_policy": [0 for _ in range(params.N)],
+            #"t" : 0,
+            #"time_remaining": self.params.T
             #"time_since_last_switch": 0,
             #"adversary_correct_since_last_switch": 0,
             #percent_of_time_on_each_policy": [0 for _ in range(params.N)],
@@ -35,6 +34,7 @@ class BetterGameSimulator:
             #"adversary_success_in_last_4_turns": [0, 0, 0, 0],
             #"adversary_accuracy_in_last_20_turns": 0,
         }
+        self.t = 0
         self.last_policy = -1
         self.adversary_correct_since_last_switch = 0
         self.policy_use_count = [0 for _ in range(params.N)]
@@ -91,7 +91,8 @@ class BetterGameSimulator:
         """
 
         reward = 0
-        t = self.state["t"]
+        #t = self.state["t"]
+        t = self.t
         # Select policy --------------------------------
         action = self.transmitter.get_policy(self.nnInput, self.params.N)
         # Transmit based on the selected policy --------------------------------
@@ -104,10 +105,10 @@ class BetterGameSimulator:
 
         self.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
 
-        if (adversary_guess != transmission_band):
-            reward += self.params.R1
-        if action != self.last_policy:
-            reward -= self.params.R2
+        #if (adversary_guess != transmission_band):
+            #reward += self.params.R1
+        if action == self.last_policy:
+            reward = self.params.R2
 
         # Advance the time ----------------------------------------------------
         self.updateState(action)
@@ -120,7 +121,8 @@ class BetterGameSimulator:
             else:
                 nextState.append(self.state[item])
 
-        if self.state["t"] >= self.params.T:
+        if self.t >= self.params.T:
+        #if self.state["t"] >= self.params.T:
             return action, reward, nextState, True
         else:
             return action, reward, nextState, False
@@ -130,7 +132,8 @@ class BetterGameSimulator:
     def updateState(self,action):
         # Update states, actions, rewards based on what happened in the game
 
-        t = self.state["t"]
+        #t = self.state["t"]
+        t = self.t
         round = self.rounds[t]
 
         self.adversary_band_guess_count[round.adversary_guess] += 1
@@ -142,8 +145,8 @@ class BetterGameSimulator:
             #self.state["time_since_last_switch"] += 1
         #print(self.state["time_since_last_switch"])
 
-        self.state["reverse_1_hot_last_policy"] = [1 for _ in range(self.params.N)]
-        self.state["reverse_1_hot_last_policy"][action]=0
+        self.state["reverse_1_hot_last_policy"] = [0 for _ in range(self.params.N)]
+        self.state["reverse_1_hot_last_policy"][action]=1
 
         if round.adversary_guess == round.transmission_band:
             # The adversary was correct
@@ -164,7 +167,8 @@ class BetterGameSimulator:
         self.policy_use_count[action] += 1
         self.bandwidth_use_count[round.transmission_band] += 1
         t = t+1
-        self.state["t"] = t
+        self.t = t
+        #self.state["t"] = t
         #self.state["time_remaining"] = self.state.get("time_remaining")-1
         """
         self.state["percent_of_time_on_each_policy"] = [
