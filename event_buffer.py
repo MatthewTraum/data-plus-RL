@@ -3,9 +3,8 @@ import torch.nn as nn
 import torch.autograd as autograd
 
 import random
-import numpy as np
 from collections import deque
-from sum_tree import SumTree
+
 
 class Buffer:
     def __init__(self, max_size):
@@ -28,7 +27,7 @@ class Buffer:
         batch = random.sample(self.buffer, batch_size)
 
         for experience in batch:
-            state, action, reward, next_state, notDone= experience
+            state, action, reward, next_state, notDone = experience
             state_batch.append(state)
             action_batch.append(action)
             reward_batch.append(reward)
