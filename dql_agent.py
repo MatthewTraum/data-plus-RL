@@ -9,7 +9,7 @@ from models import DQN
 
 class DQNAgent:
 
-    def __init__(self, NumObs, NumActions, learning_rate=.001, gamma=0.5, buffer_size=100000):
+    def __init__(self, NumObs, NumActions, learning_rate=.001, gamma=0.8, buffer_size=100000):
 
         self.learning_rate = learning_rate
         self.gamma = gamma
@@ -28,13 +28,13 @@ class DQNAgent:
 
 
 
-    def get_policy(self, state, numPolicies, eps=0):
+    def get_policy(self, state, numPolicies, eps=.3):
         state = torch.FloatTensor(state).to(self.device)
         qvals = self.model.forward(state)
         action = np.argmax(qvals.cpu().detach().numpy())
         #print(qvals)
 
-        if (np.random.randn() < eps):
+        if (abs(np.random.randn()) < eps):
             return randrange(numPolicies)
 
         return action
@@ -54,7 +54,7 @@ class DQNAgent:
         max_next_Q = torch.max(next_Q, 1)[0]
 
         #print(max_next_Q)
-        expected_Q = rewards + (0*max_next_Q* notDones)
+        expected_Q = rewards + (self.gamma*max_next_Q* notDones)
 
         loss = self.MSE_loss(curr_Q, expected_Q)
         #print(loss)

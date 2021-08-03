@@ -47,11 +47,20 @@ class GammaAdversary(Adversary):
 
         return value
 
-    def bandwidth_prediction_function(self, policy_list, rounds, t) -> int:
-        policy_values = [self.get_policy_value(policy, rounds) for policy in policy_list]
-        policy_id = np.argmax(policy_values)
+    def bandwidth_prediction_function(self, policy_list, rounds, M, t) -> int:
+        bands = [0 for _ in range(M)]
+        for policy in policy_list:
+            bands[policy.get_bandwidth(t)] += self.get_policy_value(policy, rounds)
 
-        return policy_list[policy_id].get_bandwidth(t)
+        return max(range(len(bands)), key=bands.__getitem__)
+
+
+    def bandwidth_prediction_vals(self, policy_list, rounds, M, t) -> int:
+        bands = [0 for _ in range(M)]
+        for policy in policy_list:
+            bands[policy.get_bandwidth(t)] += self.get_policy_value(policy, rounds)
+
+        return bands
 
     def __init__(self) -> None:
         self.gamma = 0.3

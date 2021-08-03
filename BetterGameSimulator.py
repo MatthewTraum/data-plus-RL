@@ -1,52 +1,25 @@
-print("Importing packages...")
 
-from neural_networks.base.NetworkInteraction import get_game_params_from_dict
-from neural_networks.base.ParameterHost import get_parameters
-from Transmitters import *
-from Receivers import *
-from Adversaries import *
-from PolicyMakers import *
 from GameElements import *
-from collections import deque
-from GameSimulator import simulate_game
-from copy import deepcopy
 
 class BetterGameSimulator:
 
-    def __init__(self, params: GameParameterSet, policy_maker: PolicyMaker,
-                 transmitter: Transmitter, receiver: Receiver, adversary: Adversary):
+    def __init__(self, params, policy_maker, transmitter, receiver, adversary, internalAdversary):
         self.params = params
         self.transmitter = transmitter
         self.receiver = receiver
         self.adversary = adversary
+        self.internalAdversary = internalAdversary
         self.policy_list = policy_maker.get_policy_list()
 
-        "Size of state is 10+3N"
+        "Size of state is 2N"
         self.state = {
-            "reverse_1_hot_last_policy": [0 for _ in range(params.N)],
-            #"t" : 0,
-            #"time_remaining": self.params.T
-            #"time_since_last_switch": 0,
-            #"adversary_correct_since_last_switch": 0,
-            #percent_of_time_on_each_policy": [0 for _ in range(params.N)],
-            #"adversary_accuracy_for_each_policy": [0 for _ in range(params.N)],
-            #"adversary_accuracy_since_last_switch": 0,
-            #"adversary_success_in_last_4_turns": [0, 0, 0, 0],
-            #"adversary_accuracy_in_last_20_turns": 0,
+            "1_hot_last_policy": [0 for _ in range(params.N)],
+            "internal_predictions" : [0 for _ in range(params.N)]
+            #"t%": 0,
         }
         self.t = 0
         self.last_policy = -1
-        self.adversary_correct_since_last_switch = 0
-        self.policy_use_count = [0 for _ in range(params.N)]
-        self.adversary_policy_correct_count = [0 for _ in range(params.N)]
-        self.bandwidth_use_count = [0 for _ in range(params.M)]
-        self.adversary_band_guess_count = [0 for _ in range(params.M)]
-        self.adversary_correct_hx20 = []
         self.rounds = []
-        self.nnInput = []
-        self.numSwitches = 0
-
-
 
     def simulate_game(self) -> int:
         # Initialize the return lists
@@ -67,7 +40,6 @@ class BetterGameSimulator:
         while not done:
             item = self.advance_time()
             action, reward, next_state, done = item
-
             if done:
                 for i in range(5):
                     self.transmitter.buffer.push(state, action, 0, next_state, 0)
@@ -79,7 +51,6 @@ class BetterGameSimulator:
             self.nnInput = state
             gameReward += reward
 
-        #print(self.numSwitches)
         return gameReward
 
 
@@ -91,7 +62,6 @@ class BetterGameSimulator:
         """
 
         reward = 0
-        #t = self.state["t"]
         t = self.t
         # Select policy --------------------------------
         action = self.transmitter.get_policy(self.nnInput, self.params.N)
@@ -100,15 +70,15 @@ class BetterGameSimulator:
 
         transmission_band = policy.get_bandwidth(t)
         receiver_guess = transmission_band
-        #adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds,t)
-        adversary_guess = random.randrange(0,self.params.M)
+        adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds, self.params.M, t)
+
 
         self.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
 
-        #if (adversary_guess != transmission_band):
-            #reward += self.params.R1
+        if (adversary_guess != transmission_band):
+            reward += self.params.R1
         if action == self.last_policy:
-            reward = self.params.R2
+            reward += self.params.R2
 
         # Advance the time ----------------------------------------------------
         self.updateState(action)
@@ -122,7 +92,6 @@ class BetterGameSimulator:
                 nextState.append(self.state[item])
 
         if self.t >= self.params.T:
-        #if self.state["t"] >= self.params.T:
             return action, reward, nextState, True
         else:
             return action, reward, nextState, False
@@ -132,83 +101,18 @@ class BetterGameSimulator:
     def updateState(self,action):
         # Update states, actions, rewards based on what happened in the game
 
-        #t = self.state["t"]
         t = self.t
         round = self.rounds[t]
 
-        self.adversary_band_guess_count[round.adversary_guess] += 1
-        if self.last_policy != action:
-            self.last_policy = action
-            #self.state["time_since_last_switch"] = 0
-            self.numSwitches+=1
-        #else:
-            #self.state["time_since_last_switch"] += 1
-        #print(self.state["time_since_last_switch"])
 
-        self.state["reverse_1_hot_last_policy"] = [0 for _ in range(self.params.N)]
-        self.state["reverse_1_hot_last_policy"][action]=1
+        self.state["1_hot_last_policy"] = [0 for _ in range(self.params.N)]
+        self.state["1_hot_last_policy"][action]=1
+        bands= self.internalAdversary.bandwidth_prediction_vals(self.policy_list, self.rounds, self.params.M, t)
 
-        if round.adversary_guess == round.transmission_band:
-            # The adversary was correct
-            self.adversary_policy_correct_count[action] += 1
-            self.adversary_correct_since_last_switch += 1
-            #self.state["adversary_success_in_last_4_turns"].append(0)
-            #self.state["adversary_success_in_last_4_turns"].pop(0)
-            self.adversary_correct_hx20.append(1)
+        for i, policy in enumerate(self.policy_list):
+            self.state["internal_predictions"][i] = bands[policy.get_bandwidth(t)]
+        #self.state["t%"] = t/self.params.T
+        self.last_policy = action
 
-        else:
-            # The adversary was incorrect
-            #self.state["adversary_success_in_last_4_turns"].append(1)
-            #self.state["adversary_success_in_last_4_turns"].pop(0)
-            self.adversary_correct_hx20.append(0)
-
-        self.adversary_correct_hx20 = self.adversary_correct_hx20[-20:]
-
-        self.policy_use_count[action] += 1
-        self.bandwidth_use_count[round.transmission_band] += 1
         t = t+1
         self.t = t
-        #self.state["t"] = t
-        #self.state["time_remaining"] = self.state.get("time_remaining")-1
-        """
-        self.state["percent_of_time_on_each_policy"] = [
-            #self.policy_use_count[i] / (t) for i in range(self.params.N)]
-        self.state["percent_time_adversary_guessed_each_band"] = [
-            #self.adversary_band_guess_count[i] / (t) for i in range(self.params.M)]
-        # NOTE: consider (4 lines below) what value to insert for
-        # unused policies (currently 0)
-        self.state["adversary_accuracy_for_each_policy"] = [
-            self.adversary_policy_correct_count[i] / self.policy_use_count[i]
-            if self.policy_use_count[i] != 0 else 0 for i in range(self.params.N)]
-        if self.state["time_since_last_switch"] != 0:
-            self.state["adversary_accuracy_since_last_switch"] = \
-            self.adversary_correct_since_last_switch / self.state["time_since_last_switch"]
-        else:
-            self.state["adversary_accuracy_since_last_switch"] = 0
-        self.state["adversary_accuracy_in_last_20_turns"] = sum(
-            self.adversary_correct_hx20) / min(t, 20)
-        """
-
-
-
-    def test_better_sim():
-        params_dict = get_parameters("GAME_PARAMS")
-        params = get_game_params_from_dict(params_dict)
-
-        params.T = 3
-        params.N = 18
-        params.M = 10
-
-        policy_maker = RandomDeterministicPolicyMaker(params)
-        transmitter = HumanTransmitter(params.N)
-        receiver = ExampleReceiver()
-        adversary = GammaAdversary()
-
-        s, a, r = better_simulate_game(params, policy_maker, transmitter, receiver,
-                                       adversary)
-
-        print("STATES", s, "ACTIONS", a, "REWARDS", r, sep="\n", end="\n")
-
-
-if __name__ == "__main__":
-    test_better_sim()
