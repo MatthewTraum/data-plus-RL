@@ -77,7 +77,7 @@ if __name__ == "__main__":
     params.M = 5
 
 
-    NUM_EPISODES = 300
+    NUM_EPISODES = 150
     UPDATES_PER_EPISODE = 50
     MIN_GAMES_PER_EPISODE = 3
 
@@ -107,7 +107,8 @@ if __name__ == "__main__":
     rewards2 = []
     switches = []
     for i in range(NUM_SIMULATED_GAMES):
-        reward, switch = BetterGameSimulator(params, policy_maker, transmitter, receiver, adversary, internalAdversary, False).simulate_game()
+        gameState = GameState(params, policy_maker.get_policy_list())
+        reward, switch = BetterGameSimulator(gameState, transmitter, receiver, adversary, internalAdversary, False).simulate_game()
         rewards2.append(reward)
         switches.append(switch)
 
