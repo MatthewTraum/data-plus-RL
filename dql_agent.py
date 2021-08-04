@@ -9,7 +9,7 @@ from models import DQN
 
 class DQNAgent:
 
-    def __init__(self, NumObs, NumActions, learning_rate=.001, gamma=0.8, buffer_size=100000):
+    def __init__(self, NumObs, NumActions, learning_rate=.001, gamma=.2, buffer_size=100000):
 
         self.learning_rate = learning_rate
         self.gamma = gamma
@@ -21,22 +21,20 @@ class DQNAgent:
         self.optimizer = torch.optim.Adam(self.model.parameters(),learning_rate)
         self.MSE_loss = nn.MSELoss()
 
-
         #TODO fix starter policy
         self.start_policy = 0
 
 
 
 
-    def get_policy(self, state, numPolicies, eps=.3):
+    def get_policy(self, state, numPolicies, training, eps=.3):
         state = torch.FloatTensor(state).to(self.device)
         qvals = self.model.forward(state)
         action = np.argmax(qvals.cpu().detach().numpy())
         #print(qvals)
 
-        if (abs(np.random.randn()) < eps):
+        if training and abs(np.random.randn()) < eps:
             return randrange(numPolicies)
-
         return action
 
     def compute_loss(self, batch):

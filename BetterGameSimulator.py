@@ -3,23 +3,26 @@ from GameElements import *
 
 class BetterGameSimulator:
 
-    def __init__(self, params, policy_maker, transmitter, receiver, adversary, internalAdversary):
-        self.params = params
+    def __init__(self, GameState, transmitter, receiver, adversary, internalAdversary, training):
+        self.GameState = GameState
+        self.params = GameState.params
+        self.policy_list = GameState.policy_list
         self.transmitter = transmitter
         self.receiver = receiver
         self.adversary = adversary
         self.internalAdversary = internalAdversary
-        self.policy_list = policy_maker.get_policy_list()
+        self.training = training
 
-        "Size of state is 2N"
+        "Size of state is 2N+1"
         self.state = {
-            "1_hot_last_policy": [0 for _ in range(params.N)],
-            "internal_predictions" : [0 for _ in range(params.N)]
-            #"t%": 0,
+            "1_hot_last_policy": [0 for _ in range(GameState.params.N)],
+            "internal_predictions": [0 for _ in range(GameState.params.N)],
+            "ad_blocked": 0,
+            "t%": 0,
         }
         self.t = 0
         self.last_policy = -1
-        self.rounds = []
+        self.switches = 0
 
     def simulate_game(self) -> int:
         # Initialize the return lists
@@ -51,7 +54,7 @@ class BetterGameSimulator:
             self.nnInput = state
             gameReward += reward
 
-        return gameReward
+        return gameReward, self.switches
 
 
     def advance_time(self)-> (int, int, list, bool):
@@ -64,21 +67,26 @@ class BetterGameSimulator:
         reward = 0
         t = self.t
         # Select policy --------------------------------
-        action = self.transmitter.get_policy(self.nnInput, self.params.N)
+        action = self.transmitter.get_policy(self.nnInput, self.params.N, self.training)
         # Transmit based on the selected policy --------------------------------
         policy = self.policy_list[action]
 
         transmission_band = policy.get_bandwidth(t)
         receiver_guess = transmission_band
-        adversary_guess = self.adversary.predict_policy(self.policy_list, self.rounds, self.params.M, t)
+        adversary_guess = self.adversary.predict_policy(self.GameState)
 
 
-        self.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
+        self.GameState.rounds.append(Round(transmission_band, receiver_guess, adversary_guess))
 
         if (adversary_guess != transmission_band):
             reward += self.params.R1
+            self.state["ad_blocked"] = 0
+        else:
+            self.state["ad_blocked"] = 1
         if action == self.last_policy:
             reward += self.params.R2
+        else:
+            self.switches += 1
 
         # Advance the time ----------------------------------------------------
         self.updateState(action)
@@ -102,17 +110,17 @@ class BetterGameSimulator:
         # Update states, actions, rewards based on what happened in the game
 
         t = self.t
-        round = self.rounds[t]
 
 
         self.state["1_hot_last_policy"] = [0 for _ in range(self.params.N)]
         self.state["1_hot_last_policy"][action]=1
-        bands= self.internalAdversary.bandwidth_prediction_vals(self.policy_list, self.rounds, self.params.M, t)
+        bands= self.internalAdversary.bandwidth_prediction_vals(self.policy_list, self.GameState.rounds, self.params.M, t)
 
         for i, policy in enumerate(self.policy_list):
             self.state["internal_predictions"][i] = bands[policy.get_bandwidth(t)]
-        #self.state["t%"] = t/self.params.T
+        self.state["t%"] = t/self.params.T
         self.last_policy = action
 
         t = t+1
+        self.GameState.t =t
         self.t = t

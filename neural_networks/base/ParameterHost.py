@@ -31,7 +31,7 @@ default_params = {
         Parameter("N", "number of available policies", "int", 40),
         Parameter("T", "length of the game", "int", 100),
         Parameter("R1", "Reward #1", "float", 10),
-        Parameter("R2", "Reward #2", "float", 4),
+        Parameter("R2", "Reward #2", "float", 6),
         Parameter("R3", "Reward #3", "float", 0)
     ]
 }

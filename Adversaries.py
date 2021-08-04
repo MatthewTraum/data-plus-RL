@@ -64,5 +64,5 @@ class GammaAdversary(Adversary):
 
     def __init__(self) -> None:
         self.gamma = 0.3
-        self.max_lookback = 5
+        self.max_lookback = 3
         super().__init__(self.bandwidth_prediction_function)
